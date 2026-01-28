@@ -12,9 +12,9 @@ JOINT_NAME_LEAD = "leg_front_r_3"
 
 ####
 ####
-KP = 0.0  # YOUR KP VALUE
-KI = 0.0 # YOUR KI VALUE
-KD = 0.0  # YOUR KD VALUE
+KP = 9e-1  # YOUR KP VALUE
+KI = 1e-1 # YOUR KI VALUE
+KD = 5e-2  # YOUR KD VALUE
 ####
 ####
 LOOP_RATE = 200  # Hz
@@ -22,7 +22,7 @@ DELTA_T = 1 / LOOP_RATE
 MAX_TORQUE = 2.0
 DEAD_BAND_SIZE = 0.095
 PENDULUM_CONTROL = False
-LEG_TRACKING_CONTROL = False
+LEG_TRACKING_CONTROL = not PENDULUM_CONTROL
 
 
 class JointStateSubscriber(Node):
@@ -35,7 +35,7 @@ class JointStateSubscriber(Node):
             JointState, "/joint_states", self.get_joint_info, 10  # QoS profile history depth
         )
         self.subscription  # prevent unused variable warning
-
+        self.sum_joint_error=0
         # Publisher to the /forward_command_controller/commands topic
         self.command_publisher = self.create_publisher(Float64MultiArray, "/forward_command_controller/commands", 10)
         self.command_publisher_lead = self.create_publisher(Float64MultiArray, "/forward_command_controller_lead/commands", 10)
@@ -66,12 +66,17 @@ class JointStateSubscriber(Node):
         torque = self.direction * 0.14
 
         return torque
+    
+    # def calculate_torque_for_leg_tracking_control(self, joint_pos, target_joint_pos):
+    #     return KP*(target_joint_pos-joint_pos)
 
     def calculate_torque_for_leg_tracking(self, joint_pos, joint_vel, target_joint_pos, target_joint_vel):
         ####
         #### YOUR CODE HERE
-        ####
-        torque = 0
+        #### I changed this already, but it seems the name in lab is wrong
+        self.sum_joint_error+=(target_joint_pos-joint_pos)
+        self.sum_joint_error=np.clip(self.sum_joint_error,-0.3,0.3)
+        torque = KP*(target_joint_pos-joint_pos)+KD*(target_joint_vel-joint_vel)+KI*self.sum_joint_error
 
 
 
@@ -85,8 +90,9 @@ class JointStateSubscriber(Node):
 
     def print_info(self):
         """Print joint information every 2 control loops"""
-        if True:
-            return
+        
+        # if True:
+        #    return
             
         if self.print_counter == 0:
             self.get_logger().info(
